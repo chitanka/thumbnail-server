@@ -1,0 +1,16 @@
+{
+	"name": "chitanka/thumbnail-server",
+	"description": "A very simple thumbnail generator and server",
+	"type": "library",
+	"license": [
+		"MIT"
+	],
+	"require": {
+		"php": ">=5.5.9"
+	},
+	"autoload": {
+		"psr-4": {
+			"Chitanka\\ThumbnailServer\\": "src"
+		}
+	}
+}
