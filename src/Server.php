@@ -2,6 +2,18 @@
 
 class Server {
 
+	private $contentDir;
+	private $cacheDir;
+
+	/**
+	 * @param string $contentDir
+	 * @param string $cacheDir
+	 */
+	public function __construct($contentDir, $cacheDir) {
+		$this->contentDir = realpath($contentDir);
+		$this->cacheDir = realpath($cacheDir);
+	}
+
 	public function serve() {
 		$generator = new Generator();
 		$query = ltrim($this->sanitize(filter_input(INPUT_SERVER, 'QUERY_STRING')), '/');
@@ -12,7 +24,7 @@ class Server {
 			list($name, $format) = explode('.', basename($query));
 			$width = null;
 		}
-		$file = sprintf('%s/../../data/%s/%s.%s', __DIR__, dirname($query), $name, $format);
+		$file = sprintf("$this->contentDir/%s/%s.%s", dirname($query), $name, $format);
 
 		if ($width === null) {
 			if (file_exists($file)) {
@@ -21,7 +33,7 @@ class Server {
 			return $this->notFound($file);
 		}
 
-		$thumb = realpath(__DIR__ . '/../cache') . "/thumb/$query";
+		$thumb = "$this->cacheDir/thumb/$query";
 
 		if (!file_exists($file)) {
 			$tifFile = realpath(preg_replace('/\.[^.]+$/', '.tif', $file));
