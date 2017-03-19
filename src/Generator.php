@@ -20,6 +20,11 @@ class Generator {
 		return $this->reallyGenerateThumbnail($filename, $thumbname, $dimensions, $quality);
 	}
 
+	public function convertTiff($tiffFile, $targetFile) {
+		$this->makeSureDirExists($targetFile);
+		shell_exec("convert $tiffFile $targetFile");
+	}
+
 	private function reallyGenerateThumbnail($filename, $thumbname, ThumbnailDimensions $dimensions, $quality) {
 		switch ($this->getExtensionFromFilename($filename)) {
 			case 'jpg':

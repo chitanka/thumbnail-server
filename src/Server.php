@@ -4,6 +4,7 @@ class Server {
 
 	private $contentDir;
 	private $cacheDir;
+	private $generator;
 
 	/**
 	 * @param string $contentDir
@@ -12,25 +13,17 @@ class Server {
 	public function __construct($contentDir, $cacheDir) {
 		$this->contentDir = realpath($contentDir);
 		$this->cacheDir = realpath($cacheDir);
+		$this->generator = new Generator();
 	}
 
 	public function serve() {
-		$generator = new Generator();
 		$query = ltrim($this->sanitize(filter_input(INPUT_SERVER, 'QUERY_STRING')), '/');
 
-		if (substr_count($query, '.') == 2) {
-			list($name, $width, $format) = explode('.', basename($query));
-		} else {
-			list($name, $format) = explode('.', basename($query));
-			$width = null;
-		}
+		list($name, $width, $format) = $this->parseQuery($query);
 		$file = sprintf("$this->contentDir/%s/%s.%s", dirname($query), $name, $format);
 
 		if ($width === null) {
-			if (file_exists($file)) {
-				return $this->sendFile($file, $format);
-			}
-			return $this->notFound($file);
+			return $this->tryToSendFile($file, $format);
 		}
 
 		$thumb = "$this->cacheDir/thumb/$query";
@@ -40,17 +33,9 @@ class Server {
 			if (!$tifFile) {
 				return $this->notFound($file);
 			}
-			$file = dirname($thumb) . '/orig_' . basename($file);
-			if (!file_exists($file)) {
-				$generator->makeSureDirExists($file);
-				shell_exec("convert $tifFile $file");
-			}
+			$file = $this->convertTiff($thumb, $tifFile, $file);
 		}
-		if (!file_exists($thumb)) {
-			ini_set('memory_limit', '256M');
-			$thumb = $generator->generateThumbnail($file, $thumb, $width, 90);
-		}
-
+		$thumb = $this->generateThumbnail($thumb, $file, $width);
 		return $this->sendFile($thumb, $format);
 	}
 
@@ -58,6 +43,39 @@ class Server {
 		$s = preg_replace('#[^a-z\d./]#', '', $s);
 		$s = strtr($s, ['..' => '.']);
 		return $s;
+	}
+
+	private function parseQuery($query) {
+		if (substr_count($query, '.') == 2) {
+			list($name, $width, $format) = explode('.', basename($query));
+		} else {
+			list($name, $format) = explode('.', basename($query));
+			$width = null;
+		}
+		return [$name, $width, $format];
+	}
+
+	private function generateThumbnail($thumb, $file, $width) {
+		if (file_exists($thumb)) {
+			return $thumb;
+		}
+		ini_set('memory_limit', '256M');
+		return $this->generator->generateThumbnail($file, $thumb, $width, 90);
+	}
+
+	private function convertTiff($thumb, $tifFile, $file) {
+		$file = dirname($thumb) . '/orig_' . basename($file);
+		if (!file_exists($file)) {
+			$this->generator->convertTiff($tifFile, $file);
+		}
+		return $file;
+	}
+
+	private function tryToSendFile($file, $format) {
+		if (file_exists($file)) {
+			return $this->sendFile($file, $format);
+		}
+		return $this->notFound($file);
 	}
 
 	private function sendFile($file, $format) {
