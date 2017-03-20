@@ -9,15 +9,18 @@ class Generator {
 		}
 	}
 
-	public function generateThumbnail($filename, $thumbname, $width = null, $quality = null) {
-		$this->makeSureDirExists($thumbname);
-
-		$dimensions = new ThumbnailDimensions($filename, $width);
-		if ($this->shouldReturnOriginalFile($dimensions)) {
-			copy($filename, $thumbname);
-			return $thumbname;
+	public function generateThumbnail(ThumbnailDefinition $thumb) {
+		if (file_exists($thumb->path)) {
+			return;
 		}
-		return $this->reallyGenerateThumbnail($filename, $thumbname, $dimensions, $quality);
+		$this->makeSureDirExists($thumb->path);
+
+		$dimensions = new ThumbnailDimensions($thumb->originalFile, $thumb->width);
+		if ($this->shouldReturnOriginalFile($dimensions)) {
+			copy($thumb->originalFile, $thumb->path);
+			return;
+		}
+		$this->reallyGenerateThumbnail($thumb->originalFile, $thumb->path, $dimensions);
 	}
 
 	public function convertTiff($tiffFile, $targetFile) {
@@ -25,15 +28,15 @@ class Generator {
 		shell_exec("convert $tiffFile $targetFile");
 	}
 
-	private function reallyGenerateThumbnail($filename, $thumbname, ThumbnailDimensions $dimensions, $quality) {
+	private function reallyGenerateThumbnail($filename, $thumbname, ThumbnailDimensions $dimensions) {
+		ini_set('memory_limit', '256M');
 		switch ($this->getExtensionFromFilename($filename)) {
 			case 'jpg':
 			case 'jpeg':
-				return $this->generateThumbnailForJpeg($filename, $thumbname, $dimensions, $quality);
+				return $this->generateThumbnailForJpeg($filename, $thumbname, $dimensions);
 			case 'png':
 				return $this->generateThumbnailForPng($filename, $thumbname, $dimensions);
 		}
-		return $thumbname;
 	}
 
 	private function shouldReturnOriginalFile(ThumbnailDimensions $dimensions) {
@@ -44,13 +47,12 @@ class Generator {
 		return ltrim(strrchr($filename, '.'), '.');
 	}
 
-	private function generateThumbnailForJpeg($filename, $thumbname, ThumbnailDimensions $dimensions, $quality) {
+	private function generateThumbnailForJpeg($filename, $thumbname, ThumbnailDimensions $dimensions) {
 		$image_p = imagecreatetruecolor($dimensions->width, $dimensions->height);
 		$image = imagecreatefromjpeg($filename);
 		imagecopyresampled($image_p, $image, 0, 0, 0, 0, $dimensions->width, $dimensions->height, $dimensions->originalWidth, $dimensions->originalHeight);
-		$quality = $quality ?: 90;
+		$quality = 90;
 		imagejpeg($image_p, $thumbname, $quality);
-		return $thumbname;
 	}
 
 	private function generateThumbnailForPng($filename, $thumbname, ThumbnailDimensions $dimensions) {
@@ -62,7 +64,6 @@ class Generator {
 		imagesavealpha($image_p, true);
 		imagecopyresampled($image_p, $image, 0, 0, 0, 0, $dimensions->width, $dimensions->height, $dimensions->originalWidth, $dimensions->originalHeight);
 		imagepng($image_p, $thumbname, 9);
-		return $thumbname;
 	}
 
 }

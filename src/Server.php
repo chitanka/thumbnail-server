@@ -17,82 +17,62 @@ class Server {
 	}
 
 	public function serve() {
-		$query = ltrim($this->sanitize(filter_input(INPUT_SERVER, 'QUERY_STRING')), '/');
-
-		list($name, $width, $format) = $this->parseQuery($query);
-		$file = sprintf("$this->contentDir/%s/%s.%s", dirname($query), $name, $format);
-
-		if ($width === null) {
-			return $this->tryToSendFile($file, $format);
-		}
-
-		$thumb = "$this->cacheDir/thumb/$query";
-
-		if (!file_exists($file)) {
-			$tifFile = realpath(preg_replace('/\.[^.]+$/', '.tif', $file));
-			if (!$tifFile) {
-				return $this->notFound($file);
+		$thumb = new ThumbnailDefinition(filter_input(INPUT_SERVER, 'QUERY_STRING'), $this->contentDir, $this->cacheDir);
+		try {
+			if ($thumb->hasNoWidth()) {
+				$this->serveFile($thumb->originalFile, $thumb->format);
+				return;
 			}
-			$file = $this->convertTiff($thumb, $tifFile, $file);
+			if (!file_exists($thumb->originalFile)) {
+				$thumb->originalFile = $this->tryToGenerateFromTiff($thumb);
+			}
+			$this->generator->generateThumbnail($thumb);
+			$this->serveFile($thumb->path, $thumb->format);
+		} catch (FileNotFound $exception) {
+			$this->sendNotFound($exception);
 		}
-		$thumb = $this->generateThumbnail($thumb, $file, $width);
-		return $this->sendFile($thumb, $format);
 	}
 
-	private function sanitize($s) {
-		$s = preg_replace('#[^a-z\d./]#', '', $s);
-		$s = strtr($s, ['..' => '.']);
-		return $s;
-	}
-
-	private function parseQuery($query) {
-		if (substr_count($query, '.') == 2) {
-			list($name, $width, $format) = explode('.', basename($query));
-		} else {
-			list($name, $format) = explode('.', basename($query));
-			$width = null;
+	private function tryToGenerateFromTiff(ThumbnailDefinition $thumb) {
+		$tifFile = realpath(preg_replace('/\.[^.]+$/', '.tif', $thumb->originalFile));
+		if (empty($tifFile)) {
+			throw FileNotFound::fromFile($thumb->originalFile);
 		}
-		return [$name, $width, $format];
-	}
-
-	private function generateThumbnail($thumb, $file, $width) {
-		if (file_exists($thumb)) {
-			return $thumb;
+		$convertedFile = dirname($thumb->path).'/orig_'.basename($thumb->originalFile);
+		if (!file_exists($convertedFile)) {
+			$this->generator->convertTiff($tifFile, $convertedFile);
 		}
-		ini_set('memory_limit', '256M');
-		return $this->generator->generateThumbnail($file, $thumb, $width, 90);
+		return $convertedFile;
 	}
 
-	private function convertTiff($thumb, $tifFile, $file) {
-		$file = dirname($thumb) . '/orig_' . basename($file);
+	private function serveFile($file, $format) {
 		if (!file_exists($file)) {
-			$this->generator->convertTiff($tifFile, $file);
+			throw FileNotFound::fromFile($file);
 		}
-		return $file;
+		$this->sendHeaders($file, $format);
+		$this->sendFileContents($file);
 	}
 
-	private function tryToSendFile($file, $format) {
-		if (file_exists($file)) {
-			return $this->sendFile($file, $format);
-		}
-		return $this->notFound($file);
+	private function sendHeaders($file, $format) {
+		$expires = 2592000; // 30 days
+		header("Cache-Control: maxage=$expires");
+		header('Content-Type: '.$this->mimeType($format));
+		header('Content-Length: '.filesize($file));
 	}
 
-	private function sendFile($file, $format) {
-		$format = strtr($format, [
+	private function sendFileContents($file) {
+		readfile($file);
+	}
+
+	private function mimeType($format) {
+		return 'image/'.strtr($format, [
 			'jpg' => 'jpeg',
 			'tif' => 'tiff',
 		]);
-		$expires = 2592000; // 30 days
-		header("Cache-Control: maxage=$expires");
-		header('Expires: ' . gmdate('D, d M Y H:i:s', time()+$expires) . ' GMT');
-		header('Content-Type: image/'.$format);
-		header('Content-Length: '.filesize($file));
-		return readfile($file);
 	}
 
-	private function notFound($file) {
+	private function sendNotFound(FileNotFound $exception) {
 		header('HTTP/1.1 404 Not Found');
-		return print "File '{$file}' does not exist.";
+		print $exception->getMessage();
 	}
 }
