@@ -17,7 +17,11 @@ class Server {
 	}
 
 	public function serve() {
-		$thumb = new ThumbnailDefinition(filter_input(INPUT_SERVER, 'QUERY_STRING'), $this->contentDir, $this->cacheDir);
+		$this->serveForQuery(filter_input(INPUT_SERVER, 'QUERY_STRING'));
+	}
+
+	public function serveForQuery($query) {
+		$thumb = new ThumbnailDefinition($query, $this->contentDir, $this->cacheDir);
 		try {
 			if ($thumb->hasNoWidth()) {
 				$this->serveFile($thumb->originalFile, $thumb->format);
