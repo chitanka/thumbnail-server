@@ -14,7 +14,7 @@ class ThumbnailDefinition {
 	public function __construct($queryString, $contentDir, $cacheDir) {
 		$this->contentDir = $contentDir;
 		$this->cacheDir = $cacheDir;
-		$this->raw = $this->sanitize($queryString);
+		$this->raw = $this->sanitizeQuery($queryString);
 		list($this->name, $this->width, $this->format) = $this->parseQuery($this->raw);
 		$this->originalFile = sprintf("$this->contentDir/%s/%s.%s", dirname($this->raw), $this->name, $this->format);
 		$this->path = "$this->cacheDir/thumb/$this->raw";
@@ -24,10 +24,11 @@ class ThumbnailDefinition {
 		return empty($this->width);
 	}
 
-	private function sanitize($s) {
-		$s = preg_replace('#[^a-z\d./]#', '', $s);
-		$s = strtr($s, ['..' => '.']);
-		return $s;
+	private function sanitizeQuery($query) {
+		$query = $this->stripHumanReadableNameFromQuery($query);
+		$query = preg_replace('#[^a-z\d./]#', '', $query);
+		$query = strtr($query, ['..' => '.']);
+		return $query;
 	}
 
 	private function parseQuery($query) {
@@ -38,6 +39,13 @@ class ThumbnailDefinition {
 			$width = null;
 		}
 		return [$name, $width, $format];
+	}
+
+	private function stripHumanReadableNameFromQuery($query) {
+		if (preg_match('#.+\..+/.+\..+$#', $query)) {
+			return dirname($query);
+		}
+		return $query;
 	}
 
 }
