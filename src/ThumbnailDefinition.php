@@ -26,7 +26,7 @@ class ThumbnailDefinition {
 
 	private function sanitizeQuery($query) {
 		$query = $this->stripHumanReadableNameFromQuery($query);
-		$query = preg_replace('#[^a-z\d./]#', '', $query);
+		$query = preg_replace('#[^a-z\d./-]#', '', $query);
 		$query = strtr($query, ['..' => '.']);
 		return $query;
 	}
