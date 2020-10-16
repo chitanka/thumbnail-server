@@ -17,7 +17,7 @@ class Server {
 	}
 
 	public function serve() {
-		$this->serveForQuery(filter_input(INPUT_SERVER, 'QUERY_STRING'));
+		$this->serveForQuery($this->prepareQuery());
 	}
 
 	public function serveForQuery($query) {
@@ -35,6 +35,14 @@ class Server {
 		} catch (FileNotFound $exception) {
 			$this->sendNotFound($exception);
 		}
+	}
+
+	private function prepareQuery(): string {
+		if (!empty($_SERVER['QUERY_STRING'])) {
+			return $_SERVER['QUERY_STRING'];
+		}
+		$pathInfo = str_replace(dirname($_SERVER['SCRIPT_NAME']), '', str_replace($_SERVER['SCRIPT_NAME'], '', $_SERVER['REQUEST_URI']));
+		return $pathInfo;
 	}
 
 	private function tryToGenerateFromTiff(ThumbnailDefinition $thumb) {
