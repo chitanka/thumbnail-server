@@ -85,6 +85,10 @@ class Server {
 
 	private function sendNotFound(FileNotFound $exception) {
 		header('HTTP/1.1 404 Not Found');
-		print $exception->getMessage();
+		header('Exception: '.str_replace("\n", '; ', $exception->getMessage()));
+		$placeholder = realpath(__DIR__.'/../assets/404.png');
+		header('Content-Type: image/png');
+		header('Content-Length: '.filesize($placeholder));
+		readfile($placeholder);
 	}
 }
